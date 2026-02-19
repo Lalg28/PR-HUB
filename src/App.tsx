@@ -91,6 +91,7 @@ export default function App() {
       prLoading={prLoading}
       error={error}
       onLogout={logout}
+      onReload={() => loadPRs(token, user.login)}
     />
   );
 }

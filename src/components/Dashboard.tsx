@@ -11,9 +11,10 @@ interface DashboardProps {
   prLoading: boolean;
   error: string;
   onLogout(): void;
+  onReload(): void;
 }
 
-export default function Dashboard({ user, assigned, reviews, prLoading, error, onLogout }: DashboardProps) {
+export default function Dashboard({ user, assigned, reviews, prLoading, error, onLogout, onReload }: DashboardProps) {
   const [tab, setTab] = useState<Tab>("assigned");
 
   const pendingReviews = reviews.filter((pr) => pr.my_review_status === "PENDING");
@@ -32,9 +33,16 @@ export default function Dashboard({ user, assigned, reviews, prLoading, error, o
             <img src={user.avatar_url} alt={user.login} className="avatar" />
             <span className="header-username">{user.login}</span>
           </a>
-          <button onClick={onLogout} className="logout-btn">
-            Logout
-          </button>
+          <div className="header-actions">
+            <button onClick={onReload} className="reload-btn" disabled={prLoading} title="Reload">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.001 7.001 0 0 1 15 8a1 1 0 1 1-2 0 5 5 0 0 0-5-5.5ZM1 8a1 1 0 0 1 2 0 5 5 0 0 0 5 5.5 5.487 5.487 0 0 0 4.131-1.869l-1.204-1.204A.25.25 0 0 1 11.104 10h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.001 7.001 0 0 1 1 8Z"/>
+              </svg>
+            </button>
+            <button onClick={onLogout} className="logout-btn">
+              Logout
+            </button>
+          </div>
         </div>
 
         <div className="tab-bar">
