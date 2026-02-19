@@ -5,12 +5,12 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
-  const [loginInput, setLoginInput] = useState("");
+  const [tokenInput, setTokenInput] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
   const [error, setError] = useState("");
 
   async function handleLogin() {
-    const pat = loginInput.trim();
+    const pat = tokenInput.trim();
     if (!pat) return;
     if (!pat.startsWith("ghp_")) {
       setError("Please use a Classic PAT (starts with ghp_). Fine-grained tokens are not supported.");
@@ -41,13 +41,13 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       <input
         type="password"
         placeholder="ghp_…"
-        value={loginInput}
-        onChange={(e) => setLoginInput(e.target.value)}
+        value={tokenInput}
+        onChange={(e) => setTokenInput(e.target.value)}
         className="input"
       />
       {error && <p className="error-text">{error}</p>}
       <button
-        disabled={loggingIn || !loginInput.trim()}
+        disabled={loggingIn || !tokenInput.trim()}
         onClick={handleLogin}
         className="btn-primary"
       >

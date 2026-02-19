@@ -1,13 +1,10 @@
 import { useEffect, useState } from "react";
-import {
-  validateToken,
-  fetchAllPRs,
-  type GitHubUser,
-  type PullRequestItem,
-} from "./github";
+import { validateToken, fetchAllPRs } from "./github";
+import type { GitHubUser, PullRequestItem } from "./types";
 import { getToken, setToken, removeToken } from "./storage";
 import LoginScreen from "./components/LoginScreen";
 import Dashboard from "./components/Dashboard";
+import { DashboardSkeleton } from "./components/Skeleton";
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -16,10 +13,10 @@ export default function App() {
   const [assigned, setAssigned] = useState<PullRequestItem[]>([]);
   const [reviews, setReviews] = useState<PullRequestItem[]>([]);
   const [error, setError] = useState("");
-  const [prLoading, setPrLoading] = useState(false);
+  const [isLoadingPRs, setIsLoadingPRs] = useState(false);
 
   async function loadPRs(pat: string, username: string) {
-    setPrLoading(true);
+    setIsLoadingPRs(true);
     try {
       const { authored, reviewRequested } = await fetchAllPRs(pat, username);
       setAssigned(authored);
@@ -27,7 +24,7 @@ export default function App() {
     } catch {
       setError("Failed to load PRs.");
     } finally {
-      setPrLoading(false);
+      setIsLoadingPRs(false);
     }
   }
 
@@ -49,9 +46,9 @@ export default function App() {
   }
 
   useEffect(() => {
-    getToken().then((t) => {
-      if (t) {
-        handleLogin(t).finally(() => setLoading(false));
+    getToken().then((storedToken) => {
+      if (storedToken) {
+        handleLogin(storedToken).finally(() => setLoading(false));
       } else {
         setLoading(false);
       }
@@ -59,24 +56,7 @@ export default function App() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="container">
-        <div className="skeleton-header">
-          <div className="skeleton skeleton-header-name" />
-          <div className="skeleton skeleton-header-action" />
-        </div>
-        <div className="skeleton-tabs">
-          <div className="skeleton skeleton-tab" />
-          <div className="skeleton skeleton-tab" />
-        </div>
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="skeleton-pr-item">
-            <div className="skeleton skeleton-line skeleton-line--medium" />
-            <div className="skeleton skeleton-line skeleton-line--short" />
-          </div>
-        ))}
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (!token || !user) {
@@ -88,7 +68,7 @@ export default function App() {
       user={user}
       assigned={assigned}
       reviews={reviews}
-      prLoading={prLoading}
+      isLoadingPRs={isLoadingPRs}
       error={error}
       onLogout={logout}
       onReload={() => loadPRs(token, user.login)}

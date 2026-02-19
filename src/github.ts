@@ -1,25 +1,6 @@
-export interface GitHubUser {
-  login: string;
-  avatar_url: string;
-}
+import type { GitHubUser, PullRequestItem, CheckStatus, ReviewStatus } from "./types";
 
-export type CheckStatus = "success" | "failure" | "pending";
-export type ReviewStatus = "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | "PENDING";
-
-export interface PullRequestItem {
-  id: number;
-  number: number;
-  title: string;
-  html_url: string;
-  repository_url: string;
-  created_at: string;
-  comments: number;
-  user?: { login: string; avatar_url: string };
-  check_status?: CheckStatus;
-  approvals?: number;
-  changes_requested?: number;
-  my_review_status?: ReviewStatus;
-}
+export type { GitHubUser, PullRequestItem, CheckStatus, ReviewStatus };
 
 interface SearchResponse {
   items: PullRequestItem[];
@@ -57,8 +38,8 @@ export async function validateToken(token: string): Promise<GitHubUser> {
 }
 
 async function searchPRs(token: string, query: string): Promise<PullRequestItem[]> {
-  const q = encodeURIComponent(query);
-  const res = await fetch(`${API}/search/issues?q=${q}&per_page=100`, {
+  const encodedQuery = encodeURIComponent(query);
+  const res = await fetch(`${API}/search/issues?q=${encodedQuery}&per_page=100`, {
     headers: headers(token),
   });
   if (!res.ok) throw new Error(`Search failed: ${query}`);
@@ -80,38 +61,38 @@ async function enrichPR(
     ]);
 
     // Reviews: count latest review per user
-    let approvals = 0;
-    let changes_requested = 0;
+    let approvalCount = 0;
+    let changesRequestedCount = 0;
     if (reviewsRes.ok) {
       const reviews: Review[] = await reviewsRes.json();
       // Keep only the latest review per user
       const latest = new Map<string, string>();
-      for (const r of reviews) {
-        if (r.state === "APPROVED" || r.state === "CHANGES_REQUESTED") {
-          latest.set(r.user.login, r.state);
+      for (const review of reviews) {
+        if (review.state === "APPROVED" || review.state === "CHANGES_REQUESTED") {
+          latest.set(review.user.login, review.state);
         }
       }
       for (const state of latest.values()) {
-        if (state === "APPROVED") approvals++;
-        else if (state === "CHANGES_REQUESTED") changes_requested++;
+        if (state === "APPROVED") approvalCount++;
+        else if (state === "CHANGES_REQUESTED") changesRequestedCount++;
       }
     }
 
     // Comments: sum issue comments (from search) + review comments (from PR detail)
     let totalComments = pr.comments ?? 0;
-    let headSha = "";
+    let commitSha = "";
     if (prRes.ok) {
       const detail: PRDetail = await prRes.json();
       totalComments += detail.review_comments ?? 0;
-      headSha = detail.head.sha;
+      commitSha = detail.head.sha;
     }
 
     // Check status from commit status + check-runs
-    let check_status: CheckStatus = "pending";
-    if (headSha) {
+    let checkStatus: CheckStatus = "pending";
+    if (commitSha) {
       const [statusRes, checksRes] = await Promise.all([
-        fetch(`${API}/repos/${repo}/commits/${headSha}/status`, { headers: headers(token) }),
-        fetch(`${API}/repos/${repo}/commits/${headSha}/check-runs`, { headers: headers(token) }),
+        fetch(`${API}/repos/${repo}/commits/${commitSha}/status`, { headers: headers(token) }),
+        fetch(`${API}/repos/${repo}/commits/${commitSha}/check-runs`, { headers: headers(token) }),
       ]);
 
       let commitState = "pending";
@@ -122,32 +103,32 @@ async function enrichPR(
         commitCount = status.total_count;
       }
 
-      let checksConclusion: CheckStatus = "pending";
+      let checkRunsConclusion: CheckStatus = "pending";
       if (checksRes.ok) {
         const checks: { total_count: number; check_runs: { conclusion: string | null; status: string }[] } =
           await checksRes.json();
         if (checks.total_count > 0) {
           const hasFailure = checks.check_runs.some(
-            (c) => c.conclusion === "failure" || c.conclusion === "timed_out" || c.conclusion === "cancelled",
+            (run) => run.conclusion === "failure" || run.conclusion === "timed_out" || run.conclusion === "cancelled",
           );
-          const allComplete = checks.check_runs.every((c) => c.status === "completed");
-          if (hasFailure) checksConclusion = "failure";
-          else if (allComplete) checksConclusion = "success";
+          const allComplete = checks.check_runs.every((run) => run.status === "completed");
+          if (hasFailure) checkRunsConclusion = "failure";
+          else if (allComplete) checkRunsConclusion = "success";
         }
       }
 
-      if (commitState === "failure" || commitState === "error" || checksConclusion === "failure") {
-        check_status = "failure";
-      } else if (commitCount === 0 && checksConclusion === "pending") {
-        check_status = "pending";
-      } else if (commitState === "pending" || checksConclusion === "pending") {
-        check_status = "pending";
+      if (commitState === "failure" || commitState === "error" || checkRunsConclusion === "failure") {
+        checkStatus = "failure";
+      } else if (commitCount === 0 && checkRunsConclusion === "pending") {
+        checkStatus = "pending";
+      } else if (commitState === "pending" || checkRunsConclusion === "pending") {
+        checkStatus = "pending";
       } else {
-        check_status = "success";
+        checkStatus = "success";
       }
     }
 
-    return { ...pr, comments: totalComments, check_status, approvals, changes_requested };
+    return { ...pr, comments: totalComments, check_status: checkStatus, approvals: approvalCount, changes_requested: changesRequestedCount };
   } catch {
     return pr;
   }
@@ -168,9 +149,9 @@ async function enrichReviewPR(
     const reviews: Review[] = await res.json();
     // Find the latest review by the current user
     let myStatus: ReviewStatus = "PENDING";
-    for (const r of reviews) {
-      if (r.user.login === username && (r.state === "APPROVED" || r.state === "CHANGES_REQUESTED" || r.state === "COMMENTED")) {
-        myStatus = r.state as ReviewStatus;
+    for (const review of reviews) {
+      if (review.user.login === username && (review.state === "APPROVED" || review.state === "CHANGES_REQUESTED" || review.state === "COMMENTED")) {
+        myStatus = review.state as ReviewStatus;
       }
     }
     return { ...pr, my_review_status: myStatus };
@@ -180,9 +161,9 @@ async function enrichReviewPR(
 }
 
 function twoWeeksAgo(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 14);
-  return d.toISOString().split("T")[0];
+  const date = new Date();
+  date.setDate(date.getDate() - 14);
+  return date.toISOString().split("T")[0];
 }
 
 export async function fetchAllPRs(

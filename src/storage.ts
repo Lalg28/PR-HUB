@@ -6,7 +6,7 @@ const storage =
 export function getToken(): Promise<string | null> {
   if (!storage) return Promise.resolve(null);
   return new Promise((resolve) =>
-    storage.get("gh_token", (r) => resolve(r.gh_token ?? null))
+    storage.get("gh_token", (result) => resolve(result.gh_token ?? null))
   );
 }
 

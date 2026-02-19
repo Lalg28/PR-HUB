@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { getRepoName, type PullRequestItem, type ReviewStatus } from "../github";
+import { getRepoName } from "../github";
+import type { PullRequestItem, ReviewStatus } from "../types";
 
 const PAGE_SIZE = 10;
 
@@ -45,13 +46,13 @@ export default function PRList({ prs, emptyMessage, showAuthor, showChecks, show
     return <p className="muted-text">{emptyMessage}</p>;
   }
 
-  const shown = prs.slice(0, visible);
-  const remaining = prs.length - visible;
+  const visiblePRs = prs.slice(0, visible);
+  const remainingCount = prs.length - visible;
 
   return (
     <>
       <ul className="pr-list">
-        {shown.map((pr) => (
+        {visiblePRs.map((pr) => (
           <li key={pr.id} className={`pr-item${showChecks ? " pr-item--with-check" : ""}`}>
             <div className="pr-item-content">
               <a
@@ -114,12 +115,12 @@ export default function PRList({ prs, emptyMessage, showAuthor, showChecks, show
           </li>
         ))}
       </ul>
-      {remaining > 0 && (
+      {remainingCount > 0 && (
         <button
           className="btn-show-more"
-          onClick={() => setVisible((v) => v + PAGE_SIZE)}
+          onClick={() => setVisible((prev) => prev + PAGE_SIZE)}
         >
-          Show more ({remaining} remaining)
+          Show more ({remainingCount} remaining)
         </button>
       )}
     </>
