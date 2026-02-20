@@ -1,8 +1,8 @@
 {
   "name": "pr-hub",
-  "description": "Chrome extension that shows your open pull requests, review requests, and CI status — with GitHub Primer theming and auto dark mode.",
+  "description": "Chrome extension that shows your open PRs, review requests, merged PRs, CI status, and base branches — with GitHub Primer theming and auto dark mode.",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.2",
   "type": "module",
   "scripts": {
     "dev": "vite build --watch",

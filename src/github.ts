@@ -8,6 +8,7 @@ interface SearchResponse {
 
 interface PRDetail {
   head: { sha: string };
+  base: { ref: string };
   comments: number;
   review_comments: number;
 }
@@ -81,10 +82,12 @@ async function enrichPR(
     // Comments: sum issue comments (from search) + review comments (from PR detail)
     let totalComments = pr.comments ?? 0;
     let commitSha = "";
+    let baseRef = "";
     if (prRes.ok) {
       const detail: PRDetail = await prRes.json();
       totalComments += detail.review_comments ?? 0;
       commitSha = detail.head.sha;
+      baseRef = detail.base.ref;
     }
 
     // Check status from commit status + check-runs
@@ -128,7 +131,7 @@ async function enrichPR(
       }
     }
 
-    return { ...pr, comments: totalComments, check_status: checkStatus, approvals: approvalCount, changes_requested: changesRequestedCount };
+    return { ...pr, comments: totalComments, check_status: checkStatus, approvals: approvalCount, changes_requested: changesRequestedCount, base_ref: baseRef || undefined };
   } catch {
     return pr;
   }
@@ -160,25 +163,37 @@ async function enrichReviewPR(
   }
 }
 
-function twoWeeksAgo(): string {
+function oneWeekAgo(): string {
   const date = new Date();
-  date.setDate(date.getDate() - 14);
+  date.setDate(date.getDate() - 7);
   return date.toISOString().split("T")[0];
 }
 
-export async function fetchAllPRs(
+function oneMonthAgo(): string {
+  const date = new Date();
+  date.setMonth(date.getMonth() - 1);
+  return date.toISOString().split("T")[0];
+}
+
+export async function fetchAuthoredPRs(
   token: string,
   username: string,
-): Promise<{ authored: PullRequestItem[]; reviewRequested: PullRequestItem[] }> {
-  const since = twoWeeksAgo();
+): Promise<PullRequestItem[]> {
+  const authored = await searchPRs(token, `type:pr author:${username} is:open`);
+  return Promise.all(authored.map((pr) => enrichPR(token, pr)));
+}
 
-  const [authored, pendingReviews, reviewedByMe] = await Promise.all([
-    searchPRs(token, `type:pr author:${username} is:open`),
+export async function fetchReviewPRs(
+  token: string,
+  username: string,
+): Promise<PullRequestItem[]> {
+  const since = oneMonthAgo();
+  const [pendingReviews, reviewedByMe] = await Promise.all([
     searchPRs(token, `type:pr review-requested:${username} is:open created:>${since}`),
     searchPRs(token, `type:pr reviewed-by:${username} is:open created:>${since}`),
   ]);
 
-  // Merge and deduplicate review PRs
+  // Merge and deduplicate
   const seen = new Set<number>();
   const allReviews: PullRequestItem[] = [];
   for (const pr of [...pendingReviews, ...reviewedByMe]) {
@@ -188,13 +203,31 @@ export async function fetchAllPRs(
     }
   }
 
-  // Enrich both tabs in parallel
-  const [enrichedAuthored, enrichedReviews] = await Promise.all([
-    Promise.all(authored.map((pr) => enrichPR(token, pr))),
-    Promise.all(allReviews.map((pr) => enrichReviewPR(token, pr, username))),
-  ]);
+  return Promise.all(allReviews.map((pr) => enrichReviewPR(token, pr, username)));
+}
 
-  return { authored: enrichedAuthored, reviewRequested: enrichedReviews };
+async function fetchBaseRef(
+  token: string,
+  pr: PullRequestItem,
+): Promise<PullRequestItem> {
+  const repo = getRepoName(pr.repository_url);
+  try {
+    const res = await fetch(`${API}/repos/${repo}/pulls/${pr.number}`, { headers: headers(token) });
+    if (res.ok) {
+      const detail: PRDetail = await res.json();
+      return { ...pr, base_ref: detail.base.ref };
+    }
+  } catch { /* fall through */ }
+  return pr;
+}
+
+export async function fetchMergedPRs(
+  token: string,
+  username: string,
+): Promise<PullRequestItem[]> {
+  const mergedSince = oneWeekAgo();
+  const merged = await searchPRs(token, `type:pr author:${username} is:merged merged:>${mergedSince}`);
+  return Promise.all(merged.map((pr) => fetchBaseRef(token, pr)));
 }
 
 export function getRepoName(repositoryUrl: string): string {

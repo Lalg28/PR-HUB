@@ -19,4 +19,5 @@ export interface PullRequestItem {
   approvals?: number;
   changes_requested?: number;
   my_review_status?: ReviewStatus;
+  base_ref?: string;
 }

@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
-import { validateToken, fetchAllPRs } from "./github";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { validateToken, fetchAuthoredPRs, fetchReviewPRs, fetchMergedPRs } from "./github";
 import type { GitHubUser, PullRequestItem } from "./types";
 import { getToken, setToken, removeToken } from "./storage";
 import LoginScreen from "./components/LoginScreen";
 import Dashboard from "./components/Dashboard";
 import { DashboardSkeleton } from "./components/Skeleton";
+
+type Tab = "assigned" | "reviews" | "merged";
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -12,21 +14,30 @@ export default function App() {
   const [user, setUser] = useState<GitHubUser | null>(null);
   const [assigned, setAssigned] = useState<PullRequestItem[]>([]);
   const [reviews, setReviews] = useState<PullRequestItem[]>([]);
+  const [merged, setMerged] = useState<PullRequestItem[]>([]);
   const [error, setError] = useState("");
   const [isLoadingPRs, setIsLoadingPRs] = useState(false);
+  const loadedTabsRef = useRef<Set<Tab>>(new Set());
 
-  async function loadPRs(pat: string, username: string) {
+  const loadTab = useCallback(async (tab: Tab, pat: string, username: string, force = false) => {
+    if (!force && loadedTabsRef.current.has(tab)) return;
     setIsLoadingPRs(true);
+    setError("");
     try {
-      const { authored, reviewRequested } = await fetchAllPRs(pat, username);
-      setAssigned(authored);
-      setReviews(reviewRequested);
+      if (tab === "assigned") {
+        setAssigned(await fetchAuthoredPRs(pat, username));
+      } else if (tab === "reviews") {
+        setReviews(await fetchReviewPRs(pat, username));
+      } else {
+        setMerged(await fetchMergedPRs(pat, username));
+      }
+      loadedTabsRef.current.add(tab);
     } catch {
       setError("Failed to load PRs.");
     } finally {
       setIsLoadingPRs(false);
     }
-  }
+  }, []);
 
   async function handleLogin(pat: string) {
     setError("");
@@ -34,7 +45,7 @@ export default function App() {
     await setToken(pat);
     setTokenState(pat);
     setUser(ghUser);
-    await loadPRs(pat, ghUser.login);
+    await loadTab("assigned", pat, ghUser.login);
   }
 
   async function logout() {
@@ -43,6 +54,23 @@ export default function App() {
     setUser(null);
     setAssigned([]);
     setReviews([]);
+    setMerged([]);
+    loadedTabsRef.current = new Set();
+  }
+
+  function handleTabChange(tab: Tab) {
+    if (token && user) {
+      loadTab(tab, token, user.login);
+    }
+  }
+
+  function handleReload(currentTab: Tab) {
+    if (!token || !user) return;
+    loadedTabsRef.current = new Set();
+    setAssigned([]);
+    setReviews([]);
+    setMerged([]);
+    loadTab(currentTab, token, user.login, true);
   }
 
   useEffect(() => {
@@ -68,10 +96,12 @@ export default function App() {
       user={user}
       assigned={assigned}
       reviews={reviews}
+      merged={merged}
       isLoadingPRs={isLoadingPRs}
       error={error}
       onLogout={logout}
-      onReload={() => loadPRs(token, user.login)}
+      onReload={handleReload}
+      onTabChange={handleTabChange}
     />
   );
 }

@@ -39,6 +39,7 @@ body {
   --color-btn-primary-bg: #1f883d;
   --color-btn-primary-hover-bg: #1a7f37;
   --color-btn-primary-fg: #ffffff;
+  --color-done-fg: #8250df;
 }
 
 /* ── Primer dark tokens ── */
@@ -55,6 +56,7 @@ body {
     --color-btn-primary-bg: #238636;
     --color-btn-primary-hover-bg: #2ea043;
     --color-btn-primary-fg: #ffffff;
+    --color-done-fg: #a371f7;
   }
 }
 
@@ -370,6 +372,11 @@ body {
   font-size: 8px;
 }
 
+.check-badge--merged {
+  color: var(--color-btn-primary-fg);
+  background: var(--color-done-fg);
+}
+
 .pr-meta {
   display: flex;
   align-items: center;
@@ -385,6 +392,21 @@ body {
 .pr-date {
   font-size: 11px;
   color: var(--color-fg-muted);
+}
+
+.pr-base-ref {
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  color: var(--color-accent-fg);
+  background: rgba(9, 105, 218, 0.1);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .pr-base-ref {
+    background: rgba(68, 147, 248, 0.15);
+  }
 }
 
 .pr-stat {
